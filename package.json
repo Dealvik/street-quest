@@ -1,0 +1,27 @@
+{
+  "name": "street-quest",
+  "private": true,
+  "version": "0.1.0",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @street-quest/geo",
+    "typecheck": "npm run build && npm run typecheck -w @street-quest/geo && npm run typecheck -w @street-quest/api && npm run typecheck -w @street-quest/mobile",
+    "test": "npm run build && npm run test -w @street-quest/geo && npm run test -w @street-quest/api",
+    "migrate": "npm run migrate -w @street-quest/api",
+    "dev:api": "npm run dev -w @street-quest/api",
+    "start:api": "npm run start -w @street-quest/api",
+    "dev:mobile": "npm run start -w @street-quest/mobile",
+    "dev:web": "npm run web -w @street-quest/mobile"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.20.3",
+    "typescript": "~6.0.3"
+  }
+}
