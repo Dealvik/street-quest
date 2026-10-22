@@ -69,7 +69,9 @@ export default function MapScreen() {
           <View style={styles.swatchMid} />
           <View style={styles.swatchHot} />
           <Text style={styles.legendText}>
-            {sojourns} sojourn{sojourns === 1 ? "" : "s"} burn brighter than a street you only crossed
+            {sojourns === 1
+              ? "1 sojourn burns brighter than a street you only crossed"
+              : `${sojourns} sojourns burn brighter than a street you only crossed`}
           </Text>
         </View>
         <View style={styles.actions}>
