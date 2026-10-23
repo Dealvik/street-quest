@@ -3,10 +3,11 @@ import { Newsreader_500Medium, Newsreader_600SemiBold } from "@expo-google-fonts
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, AppState, StyleSheet, View } from "react-native";
 import { useSession } from "../src/session";
 import { theme } from "../src/theme";
 import { useTrail } from "../src/trail";
+import { ensureTracking, stopTracking } from "../src/tracking/controls";
 import "../src/tracking/tasks";
 
 export default function RootLayout() {
@@ -35,6 +36,19 @@ export default function RootLayout() {
       router.replace("/map");
     }
   }, [ready, token, segments, router]);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (!token) {
+      void stopTracking();
+      return;
+    }
+    void ensureTracking();
+    const subscription = AppState.addEventListener("change", (next) => {
+      if (next === "active") void ensureTracking();
+    });
+    return () => subscription.remove();
+  }, [ready, token]);
 
   if ((!fontsLoaded && !fontError) || !ready) {
     return (

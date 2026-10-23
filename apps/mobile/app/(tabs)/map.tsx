@@ -6,7 +6,6 @@ import { formatDistance, formatDuration } from "../../src/format";
 import { GlowMap } from "../../src/map/GlowMap";
 import { useSession } from "../../src/session";
 import { theme, fonts } from "../../src/theme";
-import { startTrail, stopTrail } from "../../src/tracking/controls";
 import { playLongMeadow, syncPending } from "../../src/tracking/pipeline";
 import { useTrail } from "../../src/trail";
 
@@ -55,7 +54,7 @@ export default function MapScreen() {
         <GlowMap cells={shown.length > 0 ? shown : cells} focusToken={focusToken} onViewport={(bbox) => void loadViewport(bbox)} />
         <View pointerEvents="none" style={styles.top}>
           <Text style={styles.kicker}>STREET QUEST</Text>
-          <Text style={styles.mode}>{tracking ? "Trail running" : "Trail paused"}</Text>
+          <Text style={styles.mode}>{tracking ? "Recording" : "Location off"}</Text>
         </View>
       </View>
       <View style={styles.sheet}>
@@ -74,28 +73,20 @@ export default function MapScreen() {
               : `${sojourns} sojourns burn brighter than a street you only crossed`}
           </Text>
         </View>
-        <View style={styles.actions}>
-          <Pressable
-            style={styles.primary}
-            onPress={() => void (tracking ? stopTrail() : startTrail())}
-          >
-            <Text style={styles.primaryText}>{tracking ? "Pause trail" : "Start trail"}</Text>
-          </Pressable>
-          <Pressable
-            style={styles.secondary}
-            disabled={playing}
-            onPress={() => {
-              setPlaying(true);
-              void playLongMeadow()
-                .catch((error: unknown) => {
-                  setStatus(error instanceof Error ? error.message : "The replay could not finish.");
-                })
-                .finally(() => setPlaying(false));
-            }}
-          >
-            <Text style={styles.secondaryText}>{playing ? "Lighting…" : "Replay meadow"}</Text>
-          </Pressable>
-        </View>
+        <Pressable
+          style={styles.secondary}
+          disabled={playing}
+          onPress={() => {
+            setPlaying(true);
+            void playLongMeadow()
+              .catch((error: unknown) => {
+                setStatus(error instanceof Error ? error.message : "The replay could not finish.");
+              })
+              .finally(() => setPlaying(false));
+          }}
+        >
+          <Text style={styles.secondaryText}>{playing ? "Lighting…" : "Replay meadow"}</Text>
+        </Pressable>
         <Text style={styles.status}>
           {status || (pending > 0 ? `${pending} fixes waiting to sync.` : "Unlit streets are the ones you have not walked.")}
         </Text>
@@ -166,17 +157,7 @@ const styles = StyleSheet.create({
   swatchMid: { width: 18, height: 8, backgroundColor: "#9ec04a" },
   swatchHot: { width: 18, height: 8, backgroundColor: "#f4ffd0" },
   legendText: { color: theme.paperDim, fontFamily: fonts.body, fontSize: 13, flex: 1 },
-  actions: { flexDirection: "row", gap: 10 },
-  primary: {
-    flex: 1,
-    backgroundColor: theme.phosphor,
-    minHeight: 46,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primaryText: { color: theme.ink, fontFamily: fonts.monoMedium, fontSize: 14 },
   secondary: {
-    flex: 1,
     borderWidth: 1,
     borderColor: theme.phosphor,
     minHeight: 46,
