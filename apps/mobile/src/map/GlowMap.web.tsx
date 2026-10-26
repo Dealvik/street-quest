@@ -1,37 +1,66 @@
 import {
-  boundsOfCells,
-  cellsToPoints,
-  cellsToPolygons,
   DARK_MAP_STYLE,
+  FOG_COLOR,
   FOG_MASK,
-  LONG_MEADOW_CENTER,
+  FOG_OPACITY,
+  trailToLines,
   type BBox,
-  type CoverageCell,
+  type TrailSegment,
 } from "@street-quest/geo";
 import { Map as MlMap, NavigationControl, setWorkerUrl, type GeoJSONSource } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { theme } from "../theme";
-import { bloomPaint, fillPaint, glowPaint, linePaint } from "./paint";
+import { LocateButton } from "./LocateButton";
+import { lineLayout, trailGlowPaint, trailLinePaint, userDotPaint } from "./paint";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 setWorkerUrl("https://cdn.jsdelivr.net/npm/maplibre-gl@6.15.0/dist/maplibre-gl-worker.mjs");
 
+type LngLat = { longitude: number; latitude: number };
+
 type Props = {
-  cells: CoverageCell[];
-  focusToken: number;
+  segments: TrailSegment[];
+  user: LngLat | null;
   onViewport: (bbox: BBox) => void;
 };
 
-export function GlowMap({ cells, focusToken, onViewport }: Props) {
+const emptyCollection = { type: "FeatureCollection" as const, features: [] };
+
+export function GlowMap({ segments, user, onViewport }: Props) {
   const host = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MlMap | null>(null);
-  const fitted = useRef<number | null>(null);
+  const userRef = useRef(user);
+  const followingRef = useRef(true);
+  const centered = useRef(false);
+  const [following, setFollowing] = useState(true);
   const [failed, setFailed] = useState(false);
-  const cellsRef = useRef(cells);
-  cellsRef.current = cells;
+  const segmentsRef = useRef(segments);
+  segmentsRef.current = segments;
+  userRef.current = user;
   const viewportRef = useRef(onViewport);
   viewportRef.current = onViewport;
+
+  function releaseFollow() {
+    if (!followingRef.current) return;
+    followingRef.current = false;
+    setFollowing(false);
+  }
+  const releaseRef = useRef(releaseFollow);
+  releaseRef.current = releaseFollow;
+
+  function recenter() {
+    followingRef.current = true;
+    setFollowing(true);
+    const map = mapRef.current;
+    const current = userRef.current;
+    if (!map || !current) return;
+    map.jumpTo({
+      center: [current.longitude, current.latitude],
+      zoom: Math.max(map.getZoom(), 16),
+    });
+    centered.current = true;
+  }
 
   useEffect(() => {
     const node = host.current;
@@ -39,8 +68,12 @@ export function GlowMap({ cells, focusToken, onViewport }: Props) {
     const map = new MlMap({
       container: node,
       style: DARK_MAP_STYLE,
-      center: [LONG_MEADOW_CENTER.longitude, LONG_MEADOW_CENTER.latitude],
-      zoom: 14,
+      center: [0, 20],
+      zoom: 2,
+      pitch: 0,
+      maxPitch: 0,
+      dragRotate: false,
+      pitchWithRotate: false,
       attributionControl: { compact: true },
     });
     map.addControl(new NavigationControl({ showCompass: false }), "top-right");
@@ -48,6 +81,13 @@ export function GlowMap({ cells, focusToken, onViewport }: Props) {
       const message = event.error?.message ?? "";
       if (/worker|webgl|failed to load/i.test(message)) setFailed(true);
     });
+    const onGesture = (event: { originalEvent?: unknown }) => {
+      if (event.originalEvent) releaseRef.current();
+    };
+    map.on("dragstart", onGesture);
+    map.on("zoomstart", onGesture);
+    map.on("rotatestart", onGesture);
+    map.on("pitchstart", onGesture);
     map.on("load", () => {
       map.addSource("fog", {
         type: "geojson",
@@ -57,14 +97,30 @@ export function GlowMap({ cells, focusToken, onViewport }: Props) {
         id: "fog-fill",
         type: "fill",
         source: "fog",
-        paint: { "fill-color": "#050705", "fill-opacity": 0.42 },
+        paint: { "fill-color": FOG_COLOR, "fill-opacity": FOG_OPACITY },
       });
-      map.addSource("coverage", { type: "geojson", data: cellsToPolygons(cellsRef.current) });
-      map.addLayer({ id: "coverage-fill", type: "fill", source: "coverage", paint: fillPaint as never });
-      map.addLayer({ id: "coverage-glow", type: "line", source: "coverage", paint: glowPaint as never });
-      map.addLayer({ id: "coverage-line", type: "line", source: "coverage", paint: linePaint as never });
-      map.addSource("bloom", { type: "geojson", data: cellsToPoints(cellsRef.current) });
-      map.addLayer({ id: "coverage-bloom", type: "circle", source: "bloom", paint: bloomPaint as never });
+      map.addSource("trail", { type: "geojson", data: trailToLines(segmentsRef.current) });
+      map.addLayer({
+        id: "trail-glow",
+        type: "line",
+        source: "trail",
+        layout: lineLayout as never,
+        paint: trailGlowPaint as never,
+      });
+      map.addLayer({
+        id: "trail-line",
+        type: "line",
+        source: "trail",
+        layout: lineLayout as never,
+        paint: trailLinePaint as never,
+      });
+      map.addSource("user", { type: "geojson", data: userPoint(userRef.current) });
+      map.addLayer({ id: "user-dot", type: "circle", source: "user", paint: userDotPaint as never });
+      const current = userRef.current;
+      if (current && followingRef.current) {
+        map.jumpTo({ center: [current.longitude, current.latitude], zoom: 16 });
+        centered.current = true;
+      }
       const publish = () => {
         const bounds = map.getBounds();
         viewportRef.current({
@@ -86,83 +142,116 @@ export function GlowMap({ cells, focusToken, onViewport }: Props) {
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map?.isStyleLoaded()) return;
-    const polygons = map.getSource("coverage") as GeoJSONSource | undefined;
-    const points = map.getSource("bloom") as GeoJSONSource | undefined;
-    polygons?.setData(cellsToPolygons(cells));
-    points?.setData(cellsToPoints(cells));
-  }, [cells]);
+    (map?.getSource("trail") as GeoJSONSource | undefined)?.setData(trailToLines(segments));
+  }, [segments]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || fitted.current === focusToken) return;
-    const bounds = boundsOfCells(cells);
-    if (!bounds) return;
-    map.fitBounds(
-      [
-        [bounds.west, bounds.south],
-        [bounds.east, bounds.north],
-      ],
-      { padding: 72, maxZoom: 16, duration: 700 },
-    );
-    fitted.current = focusToken;
-  }, [cells, focusToken]);
+    (map?.getSource("user") as GeoJSONSource | undefined)?.setData(userPoint(user));
+    if (!map || !user || !followingRef.current) return;
+    map.easeTo({
+      center: [user.longitude, user.latitude],
+      zoom: map.getZoom() < 14 ? 16 : map.getZoom(),
+      duration: centered.current ? 450 : 0,
+    });
+    centered.current = true;
+  }, [user]);
 
   if (failed) {
     return (
       <View style={styles.frame}>
-        <SvgCoverage cells={cells} />
+        <SvgTrail segments={segments} user={user} />
+        <LocateButton following={following} onPress={recenter} />
       </View>
     );
   }
 
   return (
     <View style={styles.frame}>
-      <div ref={host} style={{ position: "absolute", inset: 0 }} />
+      <div ref={host} style={{ position: "absolute", inset: 0, zIndex: 0 }} />
+      <LocateButton following={following} onPress={recenter} />
     </View>
   );
 }
 
-function SvgCoverage({ cells }: { cells: CoverageCell[] }) {
-  const bounds = boundsOfCells(cells);
+function userPoint(user: LngLat | null) {
+  if (!user) return emptyCollection;
+  return {
+    type: "FeatureCollection" as const,
+    features: [
+      {
+        type: "Feature" as const,
+        properties: {},
+        geometry: { type: "Point" as const, coordinates: [user.longitude, user.latitude] as [number, number] },
+      },
+    ],
+  };
+}
+
+function SvgTrail({ segments, user }: { segments: TrailSegment[]; user: LngLat | null }) {
   const width = 440;
   const height = 720;
-  const padded = bounds
-    ? {
-        west: bounds.west - (bounds.east - bounds.west) * 0.18,
-        east: bounds.east + (bounds.east - bounds.west) * 0.18,
-        south: bounds.south - (bounds.north - bounds.south) * 0.18,
-        north: bounds.north + (bounds.north - bounds.south) * 0.18,
-      }
-    : null;
+  const points = segments.flatMap((segment) => segment.coordinates);
+  if (user) points.push([user.longitude, user.latitude]);
+  const bounds = boundsOf(points);
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "100%", background: "#070a07" }}>
-      <defs>
-        <filter id="cell-glow" x="-40%" y="-40%" width="180%" height="180%">
-          <feGaussianBlur stdDeviation="4" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-      {padded
-        ? cells.map((cell) => (
-            <polygon
-              key={cell.h3Index}
-              points={cell.polygon
-                .map(([longitude, latitude]) => project(longitude, latitude, padded, width, height).join(","))
-                .join(" ")}
-              fill={cell.fill}
-              fillOpacity={cell.opacity}
-              stroke={cell.line}
-              strokeWidth={cell.lineWidth}
-              filter="url(#cell-glow)"
-            />
-          ))
+    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "100%", background: "#10140f" }}>
+      <rect width={width} height={height} fill={FOG_COLOR} opacity={FOG_OPACITY} />
+      {bounds
+        ? segments.map((segment) => {
+            const [start, end] = segment.coordinates;
+            const [x1, y1] = project(start[0], start[1], bounds, width, height);
+            const [x2, y2] = project(end[0], end[1], bounds, width, height);
+            return (
+              <line
+                key={segment.id}
+                x1={x1}
+                y1={y1}
+                x2={x2}
+                y2={y2}
+                stroke={segment.line}
+                strokeWidth={segment.lineWidth}
+                strokeOpacity={segment.opacity}
+                strokeLinecap="round"
+              />
+            );
+          })
         : null}
+      {bounds && user ? (
+        <circle
+          cx={project(user.longitude, user.latitude, bounds, width, height)[0]}
+          cy={project(user.longitude, user.latitude, bounds, width, height)[1]}
+          r={7}
+          fill="#d6ff4a"
+          stroke="#10140f"
+          strokeWidth={2}
+        />
+      ) : null}
     </svg>
   );
+}
+
+function boundsOf(points: [number, number][]): BBox | null {
+  if (points.length === 0) return null;
+  let west = Infinity;
+  let south = Infinity;
+  let east = -Infinity;
+  let north = -Infinity;
+  for (const [longitude, latitude] of points) {
+    west = Math.min(west, longitude);
+    east = Math.max(east, longitude);
+    south = Math.min(south, latitude);
+    north = Math.max(north, latitude);
+  }
+  if (east - west < 0.002) {
+    west -= 0.002;
+    east += 0.002;
+  }
+  if (north - south < 0.002) {
+    south -= 0.002;
+    north += 0.002;
+  }
+  return { west, south, east, north };
 }
 
 function project(longitude: number, latitude: number, bounds: BBox, width: number, height: number): [number, number] {
@@ -172,5 +261,5 @@ function project(longitude: number, latitude: number, bounds: BBox, width: numbe
 }
 
 const styles = StyleSheet.create({
-  frame: { flex: 1, backgroundColor: theme.fog },
+  frame: { flex: 1, position: "relative", backgroundColor: theme.fog },
 });

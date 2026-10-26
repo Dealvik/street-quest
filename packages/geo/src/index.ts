@@ -29,11 +29,16 @@ export { cellKind, coverageIntensity, mixHex, styleForIntensity } from "./glow";
 export { coverageFromPoints, decorateCell, mergeCells } from "./aggregate";
 export { activityMode } from "./activity";
 export { LONG_MEADOW_WAYPOINTS, longMeadowRoam, traceFromWaypoints } from "./trace";
+export { trailFromPoints } from "./trail";
+export type { TrailSegment } from "./trail";
 export {
   boundsOfCells,
   cellInBBox,
   cellsToPoints,
   cellsToPolygons,
+  FOG_COLOR,
   FOG_MASK,
+  FOG_OPACITY,
+  trailToLines,
 } from "./geojson";
 export type { JsonFeature, JsonFeatureCollection } from "./geojson";

@@ -67,7 +67,7 @@ async function runTracking(ticket: number): Promise<void> {
   if (ticket !== epoch) return;
   useTrail.getState().setTracking(true);
   if (!useTrail.getState().status.startsWith("Background")) {
-    useTrail.getState().setStatus("Recording. Stillness slows the GPS; walking samples every 12 meters.");
+    useTrail.getState().setStatus("Stillness slows the GPS. Walking samples about every 12 meters.");
   }
 
   if (Platform.OS === "web") {
@@ -79,6 +79,10 @@ async function runTracking(ticket: number): Promise<void> {
           timeInterval: 5_000,
         },
         (location) => {
+          useTrail.getState().setUser({
+            longitude: location.coords.longitude,
+            latitude: location.coords.latitude,
+          });
           void recordPoints([locationToPoint(location)]);
         },
       );

@@ -1,6 +1,7 @@
 import * as BackgroundFetch from "expo-background-fetch";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
+import { useTrail } from "../trail";
 import { recordPoints, syncPending } from "./pipeline";
 
 export const LOCATION_TASK = "street-quest-location";
@@ -9,6 +10,13 @@ export const SYNC_TASK = "street-quest-sync";
 TaskManager.defineTask(LOCATION_TASK, async ({ data, error }) => {
   if (error || !data) return;
   const locations = (data as { locations?: Location.LocationObject[] }).locations ?? [];
+  const latest = locations.at(-1);
+  if (latest) {
+    useTrail.getState().setUser({
+      longitude: latest.coords.longitude,
+      latitude: latest.coords.latitude,
+    });
+  }
   await recordPoints(locations.map(locationToPoint));
 });
 

@@ -1,60 +1,58 @@
-import { cellInBBox, mergeCells, type BBox, type CoverageCell } from "@street-quest/geo";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { trailFromPoints, type BBox, type TrackPoint, type TrailSegment } from "@street-quest/geo";
+import { useCallback, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { fetchCoverage } from "../../src/api";
+import { fetchTrail } from "../../src/api";
 import { formatDistance, formatDuration } from "../../src/format";
 import { GlowMap } from "../../src/map/GlowMap";
 import { useSession } from "../../src/session";
 import { theme, fonts } from "../../src/theme";
-import { playLongMeadow, syncPending } from "../../src/tracking/pipeline";
+import { syncPending } from "../../src/tracking/pipeline";
 import { useTrail } from "../../src/trail";
 
 export default function MapScreen() {
   const cells = useTrail((state) => state.cells);
+  const points = useTrail((state) => state.points);
   const durationSeconds = useTrail((state) => state.durationSeconds);
   const distanceMeters = useTrail((state) => state.distanceMeters);
   const pending = useTrail((state) => state.pending);
-  const tracking = useTrail((state) => state.tracking);
   const status = useTrail((state) => state.status);
-  const focusToken = useTrail((state) => state.focusToken);
+  const user = useTrail((state) => state.user);
   const setStatus = useTrail((state) => state.setStatus);
   const token = useSession((state) => state.token);
-  const [shown, setShown] = useState<CoverageCell[]>(cells);
-  const [playing, setPlaying] = useState(false);
-  const bboxRef = useRef<BBox | null>(null);
+  const [remote, setRemote] = useState<TrackPoint[]>([]);
 
   const loadViewport = useCallback(
     async (bbox: BBox) => {
-      bboxRef.current = bbox;
-      const local = useTrail.getState().cells.filter((cell) => cellInBBox(cell, bbox));
-      let remote: CoverageCell[] = [];
-      if (token) {
-        try {
-          const response = await fetchCoverage(token, bbox);
-          remote = response.cells;
-        } catch {
-          remote = [];
-        }
+      if (!token) return;
+      try {
+        const response = await fetchTrail(token, bbox);
+        setRemote(
+          response.points.map((point) => ({
+            clientId: point.clientId,
+            latitude: point.latitude,
+            longitude: point.longitude,
+            altitude: null,
+            accuracyMeters: null,
+            speedMps: null,
+            recordedAt: point.recordedAt,
+          })),
+        );
+      } catch {
+        // Keep the trail already on screen if this viewport cannot load.
       }
-      setShown(mergeCells([local, remote]));
     },
     [token],
   );
 
-  useEffect(() => {
-    if (bboxRef.current) void loadViewport(bboxRef.current);
-    else setShown(cells);
-  }, [cells, loadViewport]);
-
+  const segments = useMemo(() => mergeTrail(points, remote), [points, remote]);
   const sojourns = cells.filter((cell) => cell.kind === "sojourn").length;
 
   return (
     <View style={styles.screen}>
       <View style={styles.map}>
-        <GlowMap cells={shown.length > 0 ? shown : cells} focusToken={focusToken} onViewport={(bbox) => void loadViewport(bbox)} />
+        <GlowMap segments={segments} user={user} onViewport={(bbox) => void loadViewport(bbox)} />
         <View pointerEvents="none" style={styles.top}>
           <Text style={styles.kicker}>STREET QUEST</Text>
-          <Text style={styles.mode}>{tracking ? "Recording" : "Location off"}</Text>
         </View>
       </View>
       <View style={styles.sheet}>
@@ -73,20 +71,6 @@ export default function MapScreen() {
               : `${sojourns} sojourns burn brighter than a street you only crossed`}
           </Text>
         </View>
-        <Pressable
-          style={styles.secondary}
-          disabled={playing}
-          onPress={() => {
-            setPlaying(true);
-            void playLongMeadow()
-              .catch((error: unknown) => {
-                setStatus(error instanceof Error ? error.message : "The replay could not finish.");
-              })
-              .finally(() => setPlaying(false));
-          }}
-        >
-          <Text style={styles.secondaryText}>{playing ? "Lighting…" : "Replay meadow"}</Text>
-        </Pressable>
         <Text style={styles.status}>
           {status || (pending > 0 ? `${pending} fixes waiting to sync.` : "Unlit streets are the ones you have not walked.")}
         </Text>
@@ -114,6 +98,13 @@ export default function MapScreen() {
   );
 }
 
+function mergeTrail(local: TrackPoint[], remote: TrackPoint[]): TrailSegment[] {
+  const byId = new Map<string, TrackPoint>();
+  for (const point of remote) byId.set(point.clientId, point);
+  for (const point of local) byId.set(point.clientId, point);
+  return trailFromPoints([...byId.values()]);
+}
+
 function Stat({ value, label }: { value: string; label: string }) {
   return (
     <View style={styles.stat}>
@@ -133,12 +124,6 @@ const styles = StyleSheet.create({
     letterSpacing: 2.4,
     fontSize: 13,
   },
-  mode: {
-    color: theme.phosphor,
-    fontFamily: fonts.body,
-    fontSize: 16,
-    marginTop: 2,
-  },
   sheet: {
     backgroundColor: theme.ink,
     borderTopWidth: 1,
@@ -157,14 +142,6 @@ const styles = StyleSheet.create({
   swatchMid: { width: 18, height: 8, backgroundColor: "#9ec04a" },
   swatchHot: { width: 18, height: 8, backgroundColor: "#f4ffd0" },
   legendText: { color: theme.paperDim, fontFamily: fonts.body, fontSize: 13, flex: 1 },
-  secondary: {
-    borderWidth: 1,
-    borderColor: theme.phosphor,
-    minHeight: 46,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  secondaryText: { color: theme.phosphor, fontFamily: fonts.monoMedium, fontSize: 14 },
   status: { color: theme.paperDim, fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
   sync: { color: theme.phosphor, fontFamily: fonts.mono, fontSize: 12, letterSpacing: 0.6 },
 });

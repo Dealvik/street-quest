@@ -1,8 +1,8 @@
-import { filterTrack, longMeadowRoam, type TrackPoint } from "@street-quest/geo";
+import { filterTrack, type TrackPoint } from "@street-quest/geo";
 import * as Battery from "expo-battery";
 import * as Network from "expo-network";
 import { api } from "../api";
-import { deleteByPrefix, insertPoint, lastPoint, markSynced, unsyncedPoints } from "../db";
+import { insertPoint, lastPoint, markSynced, unsyncedPoints } from "../db";
 import { useSession } from "../session";
 import { useTrail } from "../trail";
 
@@ -16,30 +16,6 @@ export async function recordPoints(incoming: TrackPoint[]): Promise<number> {
   }
   if (fresh.length > 0) await useTrail.getState().refresh();
   return fresh.length;
-}
-
-export async function playLongMeadow(): Promise<void> {
-  const trail = useTrail.getState();
-  trail.setStatus("Lighting the Long Meadow…");
-  trail.bumpFocus();
-  await deleteByPrefix("long-meadow-");
-  const roam = longMeadowRoam();
-  for (let index = 0; index < roam.length; index += 6) {
-    for (const point of roam.slice(index, index + 6)) {
-      await insertPoint(point);
-    }
-    await useTrail.getState().refresh();
-    await delay(80);
-  }
-  const synced = await syncPending();
-  const count = useTrail.getState().cells.length;
-  useTrail
-    .getState()
-    .setStatus(
-      synced.deferred
-        ? `${count} cells lit on this device. Sync is waiting for Wi-Fi or power.`
-        : `${count} cells lit. ${synced.uploaded} fixes sent to your map.`,
-    );
 }
 
 export async function syncPending(): Promise<{ uploaded: number; deferred: boolean }> {
@@ -78,8 +54,4 @@ async function shouldDefer(pending: number): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

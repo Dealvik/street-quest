@@ -110,6 +110,13 @@ describe("street quest api", () => {
     assert.ok(cells.some((cell) => cell.kind === "sojourn" && cell.durationSeconds >= 120));
     assert.ok(cells.every((cell) => cell.h3Index.length > 10));
 
+    const trail = await request(
+      "/v1/coverage/trail?west=-73.98&south=40.66&east=-73.96&north=40.68",
+      { token },
+    );
+    assert.equal(trail.status, 200);
+    assert.ok((trail.body.points as unknown[]).length > 20);
+
     const far = await request("/v1/coverage?west=-118.3&south=34.0&east=-118.2&north=34.1", { token });
     assert.equal(far.status, 200);
     assert.equal((far.body.cells as unknown[]).length, 0);

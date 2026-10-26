@@ -10,7 +10,6 @@ type PointBackend = {
   loadPoints(): Promise<TrackPoint[]>;
   lastPoint(): Promise<TrackPoint | null>;
   insertPoint(point: TrackPoint): Promise<void>;
-  deleteByPrefix(prefix: string): Promise<void>;
   unsyncedPoints(): Promise<TrackPoint[]>;
   markSynced(clientIds: string[]): Promise<void>;
   pendingCount(): Promise<number>;
@@ -61,9 +60,6 @@ function createWebBackend(): PointBackend {
       if (rows.some((row) => row.clientId === point.clientId)) return;
       rows.push({ ...point, synced: false });
       write(rows);
-    },
-    async deleteByPrefix(prefix) {
-      write(read().filter((row) => !row.clientId.startsWith(prefix)));
     },
     async unsyncedPoints() {
       return read()
@@ -167,9 +163,6 @@ async function createSqliteBackend(): Promise<PointBackend> {
         point.recordedAt,
       );
     },
-    async deleteByPrefix(prefix) {
-      await db.runAsync("DELETE FROM points WHERE client_id LIKE ?", `${prefix}%`);
-    },
     async unsyncedPoints() {
       const rows = await db.getAllAsync<{
         client_id: string;
@@ -225,10 +218,6 @@ export async function insertPoint(point: TrackPoint): Promise<void> {
   return (await backend()).insertPoint(point);
 }
 
-export async function deleteByPrefix(prefix: string): Promise<void> {
-  return (await backend()).deleteByPrefix(prefix);
-}
-
 export async function unsyncedPoints(): Promise<TrackPoint[]> {
   return (await backend()).unsyncedPoints();
 }
@@ -241,8 +230,8 @@ export async function pendingCount(): Promise<number> {
   return (await backend()).pendingCount();
 }
 
-export async function localCoverage(): Promise<CoverageModel & { pending: number }> {
+export async function localCoverage(): Promise<CoverageModel & { pending: number; points: TrackPoint[] }> {
   const store = await backend();
   const [points, pending] = await Promise.all([store.loadPoints(), store.pendingCount()]);
-  return { ...coverageFromPoints(points), pending };
+  return { ...coverageFromPoints(points), pending, points };
 }

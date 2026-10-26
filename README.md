@@ -34,7 +34,7 @@ npm run dev:api
 npm run dev:web
 ```
 
-The API listens on port 4000. The web preview listens on port 8081. Register an account, then use **Replay meadow** to light a real walk through Long Meadow in Prospect Park.
+The API listens on port 4000. The web preview listens on port 8081. Register an account. The map follows you and draws a line along the streets you walk.
 
 For a phone, build a development client. MapLibre native and background location are not available in Expo Go.
 

@@ -1,24 +1,24 @@
-export const fillPaint = {
-  "fill-color": ["get", "fill"],
-  "fill-opacity": ["get", "opacity"],
+export const trailGlowPaint = {
+  "line-color": ["coalesce", ["get", "line"], "#d6ff4a"],
+  "line-width": ["+", ["to-number", ["get", "lineWidth"], 3], 6],
+  "line-blur": 4,
+  "line-opacity": 0.85,
 };
 
-export const glowPaint = {
-  "line-color": ["get", "line"],
-  "line-width": ["*", ["get", "lineWidth"], 3.4],
-  "line-blur": 7,
-  "line-opacity": ["*", ["get", "opacity"], 0.9],
+export const trailLinePaint = {
+  "line-color": ["coalesce", ["get", "line"], "#f4ffd0"],
+  "line-width": ["+", ["to-number", ["get", "lineWidth"], 2], 3],
+  "line-opacity": 1,
 };
 
-export const linePaint = {
-  "line-color": ["get", "line"],
-  "line-width": ["get", "lineWidth"],
-  "line-opacity": 0.95,
+export const userDotPaint = {
+  "circle-radius": 7,
+  "circle-color": "#d6ff4a",
+  "circle-stroke-width": 2,
+  "circle-stroke-color": "#10140f",
 };
 
-export const bloomPaint = {
-  "circle-color": ["get", "line"],
-  "circle-radius": ["interpolate", ["linear"], ["get", "intensity"], 0, 8, 1, 28],
-  "circle-blur": 0.85,
-  "circle-opacity": ["interpolate", ["linear"], ["get", "intensity"], 0, 0.16, 1, 0.82],
+export const lineLayout = {
+  "line-cap": "round",
+  "line-join": "round",
 };

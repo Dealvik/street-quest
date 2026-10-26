@@ -1,4 +1,4 @@
-import type { BBox, CoverageCell } from "@street-quest/geo";
+import type { BBox, CoverageCell, TrackPoint } from "@street-quest/geo";
 
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "http://127.0.0.1:4000").replace(/\/$/, "");
 
@@ -42,6 +42,18 @@ export function register(email: string, password: string, displayName: string) {
   return api<{ token: string; user: SessionUser }>("/v1/auth/register", {
     body: { email, password, displayName },
   });
+}
+
+export type TrailFix = Pick<TrackPoint, "clientId" | "latitude" | "longitude" | "recordedAt">;
+
+export function fetchTrail(token: string, bbox: BBox) {
+  const query = new URLSearchParams({
+    west: String(bbox.west),
+    south: String(bbox.south),
+    east: String(bbox.east),
+    north: String(bbox.north),
+  });
+  return api<{ points: TrailFix[] }>(`/v1/coverage/trail?${query.toString()}`, { token });
 }
 
 export function fetchCoverage(token: string, bbox: BBox) {

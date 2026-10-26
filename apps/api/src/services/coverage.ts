@@ -235,6 +235,20 @@ type CellRow = {
   geom: string;
 };
 
+export async function trailInBBox(userId: string, bbox: BBox): Promise<TrackPoint[]> {
+  const { getPool } = await import("../db/pool");
+  const result = await getPool().query<PointRow>(
+    `SELECT client_id, latitude, longitude, altitude, accuracy_m, speed_mps, recorded_at
+     FROM location_points
+     WHERE user_id = $1
+       AND geom && ST_Expand(ST_MakeEnvelope($2, $3, $4, $5, 4326), 0.001)
+     ORDER BY recorded_at ASC, id ASC
+     LIMIT 8000`,
+    [userId, bbox.west, bbox.south, bbox.east, bbox.north],
+  );
+  return result.rows.map(rowToPoint);
+}
+
 export async function coverageInBBox(userId: string, bbox: BBox): Promise<CoverageCell[]> {
   const { getPool } = await import("../db/pool");
   const result = await getPool().query<CellRow>(

@@ -1,4 +1,9 @@
+import type { TrailSegment } from "./trail";
 import type { BBox, CoverageCell } from "./types";
+
+/** Unvisited ground. Light enough that streets still read, dark enough to stay unexplored. */
+export const FOG_COLOR = "#050705";
+export const FOG_OPACITY = 0.24;
 
 export type JsonFeatureCollection = {
   type: "FeatureCollection";
@@ -10,6 +15,7 @@ export type JsonFeature = {
   properties: Record<string, string | number>;
   geometry:
     | { type: "Polygon"; coordinates: [number, number][][] }
+    | { type: "LineString"; coordinates: [number, number][] }
     | { type: "Point"; coordinates: [number, number] };
 };
 
@@ -31,6 +37,23 @@ export function cellsToPoints(cells: readonly CoverageCell[]): JsonFeatureCollec
       type: "Feature",
       properties: propertiesOf(cell),
       geometry: { type: "Point", coordinates: cell.centroid },
+    })),
+  };
+}
+
+export function trailToLines(segments: readonly TrailSegment[]): JsonFeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: segments.map((segment) => ({
+      type: "Feature",
+      properties: {
+        id: segment.id,
+        durationSeconds: segment.durationSeconds,
+        line: segment.line,
+        opacity: segment.opacity,
+        lineWidth: segment.lineWidth,
+      },
+      geometry: { type: "LineString", coordinates: segment.coordinates },
     })),
   };
 }
