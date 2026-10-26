@@ -1,13 +1,17 @@
 import { trailFromPoints, type BBox, type TrackPoint, type TrailSegment } from "@street-quest/geo";
 import { useCallback, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, TurboModuleRegistry, View } from "react-native";
 import { fetchTrail } from "../../src/api";
 import { formatDistance, formatDuration } from "../../src/format";
-import { GlowMap } from "../../src/map/GlowMap";
 import { useSession } from "../../src/session";
 import { theme, fonts } from "../../src/theme";
 import { syncPending } from "../../src/tracking/pipeline";
 import { useTrail } from "../../src/trail";
+
+function mapLibreReady(): boolean {
+  if (Platform.OS === "web") return true;
+  return TurboModuleRegistry.get("MLRNMapViewModule") != null;
+}
 
 export default function MapScreen() {
   const cells = useTrail((state) => state.cells);
@@ -50,7 +54,7 @@ export default function MapScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.map}>
-        <GlowMap segments={segments} user={user} onViewport={(bbox) => void loadViewport(bbox)} />
+        <StreetMap segments={segments} user={user} onViewport={(bbox) => void loadViewport(bbox)} />
         <View pointerEvents="none" style={styles.top}>
           <Text style={styles.kicker}>STREET QUEST</Text>
         </View>
@@ -98,6 +102,28 @@ export default function MapScreen() {
   );
 }
 
+function StreetMap({
+  segments,
+  user,
+  onViewport,
+}: {
+  segments: TrailSegment[];
+  user: { longitude: number; latitude: number } | null;
+  onViewport: (bbox: BBox) => void;
+}) {
+  if (!mapLibreReady()) {
+    return (
+      <View style={styles.fallback}>
+        <Text style={styles.fallbackText}>
+          Expo Go does not include the street map. Sign in still works. A development build is required to draw the map on a phone.
+        </Text>
+      </View>
+    );
+  }
+  const { GlowMap } = require("../../src/map/GlowMap") as typeof import("../../src/map/GlowMap");
+  return <GlowMap segments={segments} user={user} onViewport={onViewport} />;
+}
+
 function mergeTrail(local: TrackPoint[], remote: TrackPoint[]): TrailSegment[] {
   const byId = new Map<string, TrackPoint>();
   for (const point of remote) byId.set(point.clientId, point);
@@ -117,6 +143,8 @@ function Stat({ value, label }: { value: string; label: string }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.ink },
   map: { flex: 1 },
+  fallback: { flex: 1, alignItems: "center", justifyContent: "center", padding: 28 },
+  fallbackText: { color: theme.paperDim, fontFamily: fonts.body, fontSize: 18, lineHeight: 26, textAlign: "center" },
   top: { position: "absolute", top: 18, left: 18 },
   kicker: {
     color: theme.paper,
