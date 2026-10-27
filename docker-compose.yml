@@ -1,0 +1,9 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: streetquest
+      POSTGRES_PASSWORD: streetquest
+      POSTGRES_DB: streetquest
+    ports:
+      - "5432:5432"

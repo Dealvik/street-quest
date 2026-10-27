@@ -1,0 +1,61 @@
+{
+  "expo": {
+    "name": "Street Quest",
+    "slug": "street-quest",
+    "scheme": "streetquest",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "app.streetquest.mobile",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Street Quest maps the streets and parks you move through so your map can light up.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Street Quest keeps a low-power trail while you are out, including when the app is in the background.",
+        "NSMotionUsageDescription": "Street Quest slows GPS while you are still so the trail does not drain the battery.",
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ]
+      }
+    },
+    "android": {
+      "package": "app.streetquest.mobile",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "ACTIVITY_RECOGNITION",
+        "RECEIVE_BOOT_COMPLETED"
+      ]
+    },
+    "plugins": [
+      "expo-dev-client",
+      "expo-router",
+      "expo-sqlite",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Street Quest keeps a low-power trail while you are out, including when the app is in the background.",
+          "locationWhenInUsePermission": "Street Quest maps the streets and parks you move through so your map can light up.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      "@maplibre/maplibre-react-native",
+      "expo-status-bar",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
